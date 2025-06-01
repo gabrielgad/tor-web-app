@@ -1,0 +1,109 @@
+services:
+  # Transmission with ProtonVPN
+  transmission:
+    image: haugene/transmission-openvpn
+    container_name: transmission-vpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    restart: unless-stopped
+    ports:
+      - "9091:9091"  # Transmission web UI
+      - "51413:51413"  # Torrent port
+      - "51413:51413/udp"  # Torrent port UDP
+    dns:
+      - 8.8.8.8  # Google DNS
+      - 8.8.4.4  # Google DNS secondary
+    volumes:
+      # CRITICAL: Use the same path mapping for both containers
+      - ./downloads:/data/downloads
+      - ./config:/config
+      - ./config/openvpn:/etc/openvpn/custom
+    environment:
+      # ProtonVPN Configuration
+      - OPENVPN_PROVIDER=CUSTOM
+      - OPENVPN_CONFIG=ch-356.protonvpn.udp
+      - OPENVPN_USERNAME=qTxNrdI4stSm6kjj
+      - OPENVPN_PASSWORD=XfewfwUG3eU6SxKeiYZ5KLYj6Om3VDdP
+      - OPENVPN_OPTS=--inactive 3600 --ping 10 --ping-exit 60
+      
+      # Transmission RPC settings - CRITICAL
+      - TRANSMISSION_RPC_AUTHENTICATION_REQUIRED=true
+      - TRANSMISSION_RPC_USERNAME=transmission
+      - TRANSMISSION_RPC_PASSWORD=transmission
+      - TRANSMISSION_RPC_WHITELIST_ENABLED=false
+      - TRANSMISSION_RPC_HOST_WHITELIST_ENABLED=false
+      - TRANSMISSION_RPC_BIND_ADDRESS=0.0.0.0
+      
+      # Transmission paths - MUST match volume mapping
+      - TRANSMISSION_DOWNLOAD_DIR=/data/downloads
+      - TRANSMISSION_INCOMPLETE_DIR=/data/downloads/incomplete
+      - TRANSMISSION_WATCH_DIR=/data/downloads/watch
+      - TRANSMISSION_HOME=/config/transmission-home
+      
+      # Permissions - Match your host user
+      - PUID=1000
+      - PGID=1000
+      
+      # Performance settings
+      - TRANSMISSION_PEER_LIMIT_GLOBAL=500
+      - TRANSMISSION_PEER_LIMIT_PER_TORRENT=100
+      - TRANSMISSION_DOWNLOAD_QUEUE_SIZE=10
+      - TRANSMISSION_UPLOAD_SLOTS_PER_TORRENT=8
+      
+      # Killswitch settings
+      - ENABLE_UFW=false
+      - DROP_DEFAULT_ROUTE=true
+      
+      # Network access for webapp - CRITICAL for container communication
+      - LOCAL_NETWORK=172.0.0.0/8
+      
+      # Fix permission issues
+      - CREATE_TUN_DEVICE=true
+      
+    networks:
+      - torrent_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9091/transmission/rpc -u transmission:transmission || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 10
+      start_period: 300s  # Give 5 minutes for VPN to connect
+
+  # Web application
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile.webapp
+    container_name: webapp-1
+    ports:
+      - "8080:5000"
+    volumes:
+      # CRITICAL: Use the EXACT same path mapping as transmission
+      - ./downloads:/app/downloads
+      - ./temp:/app/temp
+      # Ensure templates are mounted correctly
+      - ./templates:/app/templates
+    environment:
+      - TRANSMISSION_HOST=transmission  # Use service name, not container name
+      - TRANSMISSION_PORT=9091
+      - TRANSMISSION_USER=transmission
+      - TRANSMISSION_PASSWORD=transmission
+      - FLASK_ENV=production
+      - PYTHONPATH=/app
+    depends_on:
+      - transmission  # Just wait for transmission to start, not be healthy
+    networks:
+      - torrent_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  torrent_network:
+    driver: bridge

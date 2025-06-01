@@ -1,0 +1,79 @@
+# Downloaded content - large media files
+downloads/
+incomplete/
+
+# Transmission runtime data
+config/transmission-home/resume/
+config/transmission-home/torrents/
+config/transmission-home/dht.dat
+config/transmission-home/stats.json
+config/transmission-home/transmission.log
+config/transmission-home/bandwidth-groups.json
+config/transmission-home/blocklists/
+
+# Credentials and sensitive files
+config/openvpn-credentials.txt
+config/transmission-credentials.txt
+users.json
+
+# Temporary files
+temp/
+*.tmp
+*.temp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock

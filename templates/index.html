@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Torrent Search & Download Manager</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; padding: 20px; background: #f8f9fa; color: #333;
+        }
+        .container { 
+            max-width: 1600px; margin: 0 auto; background: white; 
+            padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+        }
+        .header { 
+            display: flex; justify-content: space-between; align-items: center; 
+            margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e9ecef;
+        }
+        .header h1 { margin: 0; color: #2c3e50; font-size: 2.5rem; }
+        
+        /* Two column layout */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            min-height: 80vh;
+        }
+        
+        .left-column {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .right-column {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .search-section { margin-bottom: 20px; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        .search-box input { 
+            flex: 1; padding: 15px; border: 2px solid #e9ecef; border-radius: 8px; 
+            font-size: 16px; transition: border-color 0.3s;
+        }
+        .search-box input:focus { outline: none; border-color: #007bff; }
+        
+        .btn { 
+            padding: 12px 24px; background: #007bff; color: white; border: none; 
+            border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;
+            transition: all 0.3s; text-decoration: none; display: inline-block;
+        }
+        .btn:hover { background: #0056b3; transform: translateY(-1px); }
+        .btn:disabled { background: #6c757d; cursor: not-allowed; transform: none; }
+        .btn.secondary { background: #6c757d; }
+        .btn.secondary:hover { background: #5a6268; }
+        .btn.danger { background: #dc3545; }
+        .btn.danger:hover { background: #c82333; }
+        .btn.success { background: #28a745; }
+        .btn.warning { background: #ffc107; color: #212529; }
+        .btn-small { padding: 6px 12px; font-size: 12px; }
+        
+        /* Search Results - Larger Scrollable Container */
+        .search-results-container {
+            max-height: 800px; /* Doubled from 400px */
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            flex: 1;
+        }
+        
+        .search-results-container:empty {
+            display: none;
+        }
+        
+        .search-results-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            color: #2c3e50;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .search-results-content {
+            padding: 10px;
+        }
+        
+        .section-title { 
+            font-size: 1.5rem; color: #2c3e50; margin-bottom: 20px; 
+            padding-bottom: 10px; border-bottom: 1px solid #e9ecef;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        .result-item, .download-item, .file-item { 
+            padding: 20px; border: 1px solid #e9ecef; margin-bottom: 15px; 
+            border-radius: 8px; transition: all 0.3s; background: #fff;
+        }
+        .result-item:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .download-item { background: #f8f9fa; }
+        .file-item { background: #f8f9fa; }
+        
+        .item-name { 
+            font-weight: 600; margin-bottom: 8px; font-size: 1.1rem; color: #2c3e50;
+            word-break: break-word;
+        }
+        .item-details { 
+            color: #6c757d; font-size: 14px; margin-bottom: 15px; 
+            display: flex; gap: 20px; flex-wrap: wrap;
+        }
+        .detail-item { display: flex; align-items: center; gap: 5px; }
+        
+        .download-progress { margin: 15px 0; }
+        .progress-bar { 
+            width: 100%; height: 24px; background: #e9ecef; border-radius: 12px; 
+            overflow: hidden; position: relative;
+        }
+        .progress-fill { 
+            height: 100%; background: linear-gradient(90deg, #28a745, #20c997); 
+            transition: width 0.5s ease; border-radius: 12px; position: relative;
+        }
+        .progress-text { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-weight: 600; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        .status-info { 
+            font-size: 14px; margin-top: 10px; display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 10px;
+        }
+        .status-badge { 
+            padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;
+        }
+        .status-downloading { background: #d1ecf1; color: #0c5460; }
+        .status-completed { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        .status-stopped { background: #f8d7da; color: #721c24; }
+        .status-seeding { background: #fff3cd; color: #856404; }
+        .status-checking { background: #d1ecf1; color: #0c5460; }
+        
+        .item-actions { 
+            display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;
+        }
+        
+        .empty-state { 
+            text-align: center; padding: 40px; color: #6c757d; 
+            background: #f8f9fa; border-radius: 8px; margin: 20px 0;
+        }
+        .loading { text-align: center; padding: 20px; color: #007bff; }
+        
+        .stats { 
+            display: flex; gap: 15px; font-size: 12px; color: #6c757d; 
+            margin-top: 5px; flex-wrap: wrap;
+        }
+        
+        .info-text { color: #6c757d; font-size: 14px; }
+        
+        .error-highlight { 
+            background: #fff5f5; border-left: 4px solid #dc3545; 
+            padding: 10px; margin: 10px 0; border-radius: 4px;
+        }
+        
+        /* Right column sections */
+        .downloads-section {
+            margin-bottom: 30px;
+            flex: 1;
+            display: flex; /* Added for flex behavior of content */
+            flex-direction: column; /* Added for flex behavior of content */
+        }
+        
+        .downloads-content {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+            flex-grow: 1; /* Allows content to take available space */
+        }
+        
+        .files-section {
+            flex: 1;
+            display: flex; /* Added for flex behavior of content */
+            flex-direction: column; /* Added for flex behavior of content */
+        }
+        
+        .files-content {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+            flex-grow: 1; /* Allows content to take available space */
+        }
+        
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        .logout-btn:hover {
+            background: #c82333;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            .search-results-container {
+                max-height: 500px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container { padding: 20px; }
+            .header { flex-direction: column; gap: 15px; text-align: center; }
+            .search-box { flex-direction: column; }
+            .item-details { flex-direction: column; gap: 10px; }
+            .status-info { flex-direction: column; align-items: flex-start; }
+            .section-title { flex-direction: column; gap: 10px; align-items: stretch; }
+            .search-results-container { max-height: 400px; }
+            .downloads-content, .files-content { max-height: 300px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Torrent Search & Download Manager</h1>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Column - Search -->
+            <div class="left-column">
+                <div class="search-section">
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="Search for torrents..." autofocus>
+                        <button class="btn" onclick="search()">Search</button>
+                    </div>
+                </div>
+
+                <div class="search-results-container" id="search-results-container">
+                    <!-- Search results will appear here in a scrollable container -->
+                </div>
+            </div>
+
+            <!-- Right Column - Downloads & Files -->
+            <div class="right-column">
+                <div class="downloads-section">
+                    <div class="section-title">
+                        <span>Active Downloads</span>
+                        <button class="btn secondary btn-small" onclick="refreshTorrents()">Refresh</button>
+                    </div>
+                    <div class="downloads-content" id="downloads">
+                        <!-- Active downloads will appear here -->
+                    </div>
+                </div>
+
+                <div class="files-section">
+                    <div class="section-title">
+                        <span>Downloaded Files</span>
+                        <div>
+                            <span id="file-count" class="info-text"></span>
+                            <button class="btn secondary btn-small" onclick="refreshFiles()" style="margin-left: 10px;">Refresh</button>
+                        </div>
+                    </div>
+                    <div class="files-content" id="files">
+                        <!-- Downloaded files will appear here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let downloadInterval;
+        let isPolling = false;
+
+        console.log('Torrent Search & Download Manager loaded');
+
+        // Search functionality
+        async function search() {
+            console.log('Search function called');
+            const query = document.getElementById("searchInput").value.trim();
+            console.log('Search query:', query);
+            
+            if (!query) {
+                console.log('Empty query, returning');
+                return;
+            }
+
+            const resultsContainer = document.getElementById("search-results-container");
+            resultsContainer.innerHTML = `
+                <div class="search-results-header">Searching...</div>
+                <div class="search-results-content">
+                    <div class="loading">Searching for "${escapeHtml(query)}"...</div>
+                </div>
+            `;
+
+            try {
+                console.log('Making fetch request to:', `/api/search?q=${encodeURIComponent(query)}`);
+                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                console.log('Response status:', response.status);
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (data.results && data.results.length > 0) {
+                    console.log('Displaying results:', data.results.length);
+                    resultsContainer.innerHTML = `
+                        <div class="search-results-header">Search Results (${data.results.length} found for "${escapeHtml(query)}")</div>
+                        <div class="search-results-content">
+                            ${data.results.map(result => `
+                                <div class="result-item">
+                                    <div class="item-name">${escapeHtml(result.name)}</div>
+                                    <div class="item-details">
+                                        <div class="detail-item">Size: <strong>${result.size}</strong></div>
+                                        <div class="detail-item">Seeders: <strong>${result.seeders}</strong></div>
+                                        <div class="detail-item">Leechers: <strong>${result.leechers}</strong></div>
+                                        <div class="detail-item">Added: ${result.added}</div>
+                                    </div>
+                                    <div class="item-actions">
+                                        <button class="btn" onclick="download('${result.info_hash}', '${escapeHtml(result.name).replace(/'/g, "\\'")}')">
+                                            Download
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join("")}
+                        </div>
+                    `;
+                } else {
+                    console.log('No results found');
+                    resultsContainer.innerHTML = `
+                        <div class="search-results-header">No Results</div>
+                        <div class="search-results-content">
+                            <div class="empty-state">No results found for "${escapeHtml(query)}"</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error("Search error:", error);
+                resultsContainer.innerHTML = `
+                    <div class="search-results-header">Search Error</div>
+                    <div class="search-results-content">
+                        <div class="empty-state">Search failed: ${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Download functionality
+        async function download(infoHash, name) {
+            console.log('Download starting:', name, infoHash);
+            const button = event.target;
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = "Starting...";
+
+            try {
+                const response = await fetch("/api/download", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({info_hash: infoHash, name: name})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    button.textContent = "Added!";
+                    button.classList.add('success');
+                    await refreshTorrents();
+                    startDownloadPolling();
+                } else {
+                    throw new Error(data.error || "Unknown error");
+                }
+            } catch (error) {
+                console.error("Download error:", error);
+                button.disabled = false;
+                button.textContent = originalText;
+                alert("Download failed: " + error.message);
+            }
+        }
+
+        // Torrent management
+        async function refreshTorrents() {
+            console.log('Refreshing torrents...');
+            const downloadsDiv = document.getElementById("downloads");
+            
+            try {
+                const response = await fetch("/api/current-torrents");
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                console.log('Torrents API response:', data);
+
+                if (data.torrents && data.torrents.length > 0) {
+                    console.log(`Displaying ${data.torrents.length} torrents`);
+                    downloadsDiv.innerHTML = data.torrents.map(torrent => {
+                        const statusClass = `status-${torrent.status.replace(/\s+/g, '-')}`;
+                        let statusDisplay = torrent.status;
+                        let progressColor = '#28a745';
+                        let errorInfo = '';
+                        
+                        if (torrent.error > 0) {
+                            statusDisplay = 'Error';
+                            progressColor = '#dc3545';
+                            errorInfo = `
+                                <div class="error-highlight">
+                                    <strong>Error:</strong> ${torrent.error_string}<br>
+                                    <small>Tip: This usually means a volume mounting issue. Check your docker-compose.yml file.</small>
+                                </div>
+                            `;
+                        }
+                        
+                        return `
+                            <div class="download-item">
+                                <div class="item-name">${escapeHtml(torrent.name)}</div>
+                                <div class="download-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: ${torrent.progress}%; background: ${progressColor};">
+                                            <div class="progress-text">${torrent.progress.toFixed(1)}%</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="status-info">
+                                    <div>
+                                        <span class="status-badge ${statusClass}">${statusDisplay}</span>
+                                        <div class="stats">
+                                            ${torrent.download_rate > 0 ? `Down: ${formatSpeed(torrent.download_rate)}` : ''}
+                                            ${torrent.upload_rate > 0 ? `Up: ${formatSpeed(torrent.upload_rate)}` : ''}
+                                            ${torrent.download_rate === 0 && torrent.upload_rate === 0 ? 'Idle' : ''}
+                                        </div>
+                                    </div>
+                                    <div class="item-actions">
+                                        ${torrent.status === 'stopped' ? 
+                                            `<button class="btn btn-small success" onclick="startTorrent(${torrent.id})">Start</button>` :
+                                            `<button class="btn btn-small warning" onclick="pauseTorrent(${torrent.id})">Pause</button>`
+                                        }
+                                        <button class="btn btn-small secondary" onclick="removeTorrent(${torrent.id})">Remove</button>
+                                    </div>
+                                </div>
+                                ${errorInfo}
+                            </div>
+                        `;
+                    }).join("");
+                } else {
+                    console.log('No torrents found in API response');
+                    downloadsDiv.innerHTML = '<div class="empty-state">No active downloads</div>';
+                }
+            } catch (error) {
+                console.error("Refresh error:", error);
+                downloadsDiv.innerHTML = `<div class="empty-state">Failed to load downloads: ${error.message}</div>`;
+            }
+        }
+
+        // File management
+        async function refreshFiles() {
+            console.log('Refreshing files...');
+            const filesDiv = document.getElementById("files");
+            const fileCountSpan = document.getElementById("file-count");
+            
+            try {
+                const response = await fetch("/api/files");
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                console.log('Files API response:', data);
+
+                if (data.files && data.files.length > 0) {
+                    const totalSize = formatTotalSize(data.files);
+                    fileCountSpan.textContent = `${data.files.length} files (${totalSize})`;
+                    
+                    filesDiv.innerHTML = data.files.map(file => `
+                        <div class="file-item">
+                            <div class="item-name">${escapeHtml(file.name)}</div>
+                            <div class="item-details">
+                                <div class="detail-item">Size: <strong>${file.size}</strong></div>
+                                <div class="detail-item">Modified: ${file.modified}</div>
+                                ${file.folder !== '/' ? `<div class="detail-item">Folder: ${file.folder}</div>` : ''}
+                            </div>
+                            <div class="item-actions">
+                                <a href="/download/${encodeURIComponent(file.path)}" 
+                                   class="btn btn-small" 
+                                   download="${file.name}">
+                                    Download to Device
+                                </a>
+                                <button class="btn btn-small danger" 
+                                        onclick="deleteFile('${file.path}', '${escapeHtml(file.name).replace(/'/g, "\\'")}')">
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    `).join("");
+                } else {
+                    console.log('No files found');
+                    fileCountSpan.textContent = '0 files';
+                    filesDiv.innerHTML = '<div class="empty-state">No downloaded files yet. Complete some torrents to see files here!</div>';
+                }
+            } catch (error) {
+                console.error("Files refresh error:", error);
+                filesDiv.innerHTML = `<div class="empty-state">Failed to load files: ${error.message}</div>`;
+                fileCountSpan.textContent = '';
+            }
+        }
+
+        // File operations
+        async function deleteFile(filepath, filename) {
+            if (!confirm(`Are you sure you want to delete "${filename}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch("/api/files/delete", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({filepath: filepath})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`File "${filename}" deleted successfully`);
+                    refreshFiles();
+                } else {
+                    throw new Error(data.error || "Unknown error");
+                }
+            } catch (error) {
+                console.error("Delete error:", error);
+                alert("Delete failed: " + error.message);
+            }
+        }
+
+        // Torrent control
+        async function removeTorrent(torrentId) {
+            if (!confirm('Remove this torrent from the download list?\n\n(Downloaded files will be kept)')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch("/api/torrent/remove", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({torrent_id: torrentId})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    refreshTorrents();
+                } else {
+                    alert("Failed to remove torrent: " + (data.error || "Unknown error"));
+                }
+            } catch (error) {
+                alert("Failed to remove torrent: " + error.message);
+            }
+        }
+        
+        async function startTorrent(torrentId) {
+            try {
+                const response = await fetch("/api/torrent/start", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({torrent_id: torrentId})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    refreshTorrents();
+                } else {
+                    alert("Failed to start torrent: " + (data.error || "Unknown error"));
+                }
+            } catch (error) {
+                alert("Failed to start torrent: " + error.message);
+            }
+        }
+        
+        async function pauseTorrent(torrentId) {
+            try {
+                const response = await fetch("/api/torrent/pause", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({torrent_id: torrentId})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    refreshTorrents();
+                } else {
+                    alert("Failed to pause torrent: " + (data.error || "Unknown error"));
+                }
+            } catch (error) {
+                alert("Failed to pause torrent: " + error.message);
+            }
+        }
+
+        // Polling management
+        function startDownloadPolling() {
+            if (isPolling) return;
+            console.log('Starting download polling...');
+            isPolling = true;
+            downloadInterval = setInterval(() => {
+                refreshTorrents();
+                refreshFiles();
+            }, 5000);
+        }
+
+        function stopDownloadPolling() {
+            if (downloadInterval) {
+                console.log('Stopping download polling');
+                clearInterval(downloadInterval);
+                downloadInterval = null;
+                isPolling = false;
+            }
+        }
+
+        // Utility functions
+        async function refreshAll() {
+            console.log('Refreshing all data...');
+            await Promise.all([refreshTorrents(), refreshFiles()]);
+        }
+
+        async function testAPI() {
+            try {
+                const response = await fetch("/api/current-torrents");
+                const data = await response.json();
+                console.log('API Response:', data);
+                alert(`API Test Results:\nStatus: ${response.status}\nTorrents: ${data.torrents ? data.torrents.length : 'none'}\n\nCheck console for details`);
+            } catch (error) {
+                console.error('API Test Error:', error);
+                alert('API Test Failed: ' + error.message);
+            }
+        }
+
+        async function debugDownloads() {
+            try {
+                const [debugResponse, torrentsResponse] = await Promise.all([
+                    fetch("/api/debug/downloads"),
+                    fetch("/api/current-torrents")
+                ]);
+                
+                const debugData = await debugResponse.json();
+                const torrentsData = await torrentsResponse.json();
+                
+                console.log('Debug downloads:', debugData);
+                console.log('Current torrents:', torrentsData);
+                
+                const popup = window.open('', '_blank', 'width=1000,height=700');
+                popup.document.write(`
+                    <html>
+                        <head>
+                            <title>Debug Information</title>
+                            <style>
+                                body { font-family: monospace; padding: 20px; background: #f5f5f5; }
+                                pre { background: white; padding: 15px; border-radius: 8px; overflow: auto; }
+                                h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+                            </style>
+                        </head>
+                        <body>
+                            <h2>Debug Downloads</h2>
+                            <pre>${JSON.stringify(debugData, null, 2)}</pre>
+                            <h2>Current Torrents</h2>
+                            <pre>${JSON.stringify(torrentsData, null, 2)}</pre>
+                        </body>
+                    </html>
+                `);
+            } catch (error) {
+                console.error("Debug error:", error);
+                alert('Debug failed: ' + error.message);
+            }
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch("/api/health");
+                const data = await response.json();
+                
+                const message = `Health Status: ${data.overall}\nTransmission: ${data.transmission}\nDownload Dir: ${data.download_dir}`;
+                alert(message);
+            } catch (error) {
+                alert('Health check failed: ' + error.message);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatSpeed(bytesPerSecond) {
+            if (bytesPerSecond === 0) return '0 B/s';
+            const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+            let size = bytesPerSecond;
+            let unitIndex = 0;
+            
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            
+            return `${size.toFixed(1)} ${units[unitIndex]}`;
+        }
+
+        function formatTotalSize(files) {
+            const totalBytes = files.reduce((sum, file) => sum + file.size_bytes, 0);
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let size = totalBytes;
+            let unitIndex = 0;
+            
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            
+            return `${size.toFixed(1)} ${units[unitIndex]}`;
+        }
+
+        // Event listeners
+        document.getElementById("searchInput").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                console.log('Enter key pressed, calling search');
+                search();
+            }
+        });
+
+        // Page lifecycle
+        window.addEventListener('load', function() {
+            console.log('Page loaded, initializing...');
+            refreshAll();
+            
+            // Check if there are active downloads and start polling
+            setTimeout(() => {
+                const downloads = document.getElementById("downloads");
+                if (downloads.innerHTML.includes("progress-bar")) {
+                    startDownloadPolling();
+                }
+            }, 2000);
+        });
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                console.log('Page hidden, stopping polling');
+                stopDownloadPolling();
+            } else {
+                console.log('Page visible, refreshing and restarting polling');
+                refreshAll();
+                setTimeout(() => {
+                    const downloads = document.getElementById("downloads");
+                    if (downloads.innerHTML.includes("progress-bar")) {
+                        startDownloadPolling();
+                    }
+                }, 1000);
+            }
+        });
+
+        console.log('Torrent Search & Download Manager fully loaded!');
+    </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    netcat-traditional \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better layer caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Create necessary directories
+RUN mkdir -p /app/downloads /app/temp /app/app /app/templates
+
+# Copy application files with proper structure
+COPY app/ ./app/
+COPY templates/ ./templates/
+COPY run.py .
+COPY wait-for-services.py .
+
+# Copy users.json if it exists, create default if not
+COPY users.json* ./
+
+# Make scripts executable
+RUN chmod +x wait-for-services.py
+
+# Set proper permissions
+RUN chown -R www-data:www-data /app
+RUN chmod 755 /app
+
+# Set environment variables
+ENV FLASK_APP=run.py
+ENV FLASK_ENV=production
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Expose the application port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:5000/api/health || exit 1
+
+# Use wait script to ensure transmission is ready, then start the app
+CMD ["python", "wait-for-services.py"]
