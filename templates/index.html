@@ -4,94 +4,749 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Torrent Search & Download Manager</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS (inline for now to avoid 404 issues) -->
+    <style>
+        body { background: #f8f9fa; }
+        .container-fluid { max-width: 1600px; }
+        .site-selector {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .site-option {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            margin: 0.25rem;
+        }
+        .site-option:hover {
+            background: #e9ecef;
+        }
+        .site-option.selected {
+            background: #0d6efd;
+            color: white;
+            border-color: #0a58ca;
+        }
+        .site-badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            background: #6c757d;
+            color: white;
+            margin-left: 0.5rem;
+        }
+        .site-option.selected .site-badge {
+            background: rgba(255,255,255,0.3);
+        }
+        .search-results-container {
+            max-height: 70vh;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            background: white;
+        }
+        .search-results-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .downloads-content, .files-content {
+            max-height: 50vh;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            background: white;
+        }
+        .progress {
+            height: 1.5rem;
+        }
+        .result-item, .download-item, .file-item {
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: white;
+            transition: all 0.3s;
+        }
+        .result-item:hover {
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            border-color: #0d6efd;
+        }
+        .navbar-brand {
+            font-weight: 600;
+            color: #0d6efd !important;
+        }
+        .search-status {
+            position: absolute;
+            right: 120px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            color: #6c757d;
+            pointer-events: none;
+        }
+        .card-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Torrent Search & Download Manager</h1>
-            <a href="/logout" class="logout-btn">Logout</a>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-cloud-download"></i>
+                Torrent Search & Download Manager
+            </a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </a>
         </div>
+    </nav>
 
-        <div class="main-content">
+    <div class="container-fluid px-4">
+        <div class="row">
             <!-- Left Column - Search -->
-            <div class="left-column">
-                <div class="search-section">
-                    <div class="search-controls">
-                        <!-- Site Selector -->
-                        <div class="site-selector">
-                            <label>Search Site:</label>
-                            <div class="site-options">
-                                <div class="site-option selected" onclick="selectSite('piratebay')">
-                                    <input type="radio" name="site" value="piratebay" checked>
-                                    <span>PirateBay</span>
-                                    <span class="site-badge">API</span>
-                                </div>
-                                <div class="site-option" onclick="selectSite('1337x')">
-                                    <input type="radio" name="site" value="1337x">
-                                    <span>1337x</span>
-                                    <span class="site-badge">SCRAPE</span>
-                                </div>
-                                <div class="site-option" onclick="selectSite('gog-games')">
-                                    <input type="radio" name="site" value="gog-games">
-                                    <span>GOG Games</span>
-                                    <span class="site-badge">GAMES</span>
-                                </div>
-                                <div class="site-option" onclick="selectSite('fitgirl')">
-                                    <input type="radio" name="site" value="fitgirl">
-                                    <span>FitGirl</span>
-                                    <span class="site-badge">REPACKS</span>
-                                </div>
-                                <div class="site-option" onclick="selectSite('steamrip')">
-                                    <input type="radio" name="site" value="steamrip">
-                                    <span>SteamRIP</span>
-                                    <span class="site-badge">GAMES</span>
-                                </div>
-                            </div>
+            <div class="col-lg-6 mb-4">
+                <!-- Site Selector -->
+                <div class="site-selector">
+                    <label class="form-label fw-bold mb-3">
+                        <i class="bi bi-globe2"></i> Search Site:
+                    </label>
+                    <div class="d-flex flex-wrap">
+                        <div class="site-option selected d-flex align-items-center" onclick="selectSite('piratebay')">
+                            <input type="radio" name="site" value="piratebay" checked class="me-2">
+                            <span>PirateBay</span>
+                            <span class="site-badge">API</span>
                         </div>
-
-                        <!-- Search Box -->
-                        <div class="search-box">
-                            <input type="text" id="searchInput" placeholder="Search for torrents..." autofocus>
-                            <div class="search-status" id="search-status"></div>
-                            <button class="btn" onclick="search()">Search</button>
+                        <div class="site-option d-flex align-items-center" onclick="selectSite('1337x')">
+                            <input type="radio" name="site" value="1337x" class="me-2">
+                            <span>1337x</span>
+                            <span class="site-badge">SCRAPE</span>
+                        </div>
+                        <div class="site-option d-flex align-items-center" onclick="selectSite('gog-games')">
+                            <input type="radio" name="site" value="gog-games" class="me-2">
+                            <span>GOG Games</span>
+                            <span class="site-badge">GAMES</span>
+                        </div>
+                        <div class="site-option d-flex align-items-center" onclick="selectSite('fitgirl')">
+                            <input type="radio" name="site" value="fitgirl" class="me-2">
+                            <span>FitGirl</span>
+                            <span class="site-badge">REPACKS</span>
+                        </div>
+                        <div class="site-option d-flex align-items-center" onclick="selectSite('steamrip')">
+                            <input type="radio" name="site" value="steamrip" class="me-2">
+                            <span>SteamRIP</span>
+                            <span class="site-badge">GAMES</span>
                         </div>
                     </div>
                 </div>
 
+                <!-- Search Box -->
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" id="searchInput" class="form-control form-control-lg" 
+                               placeholder="Search for torrents..." autofocus>
+                        <div class="search-status" id="search-status"></div>
+                        <button class="btn btn-primary btn-lg" onclick="search()">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search Results -->
                 <div class="search-results-container" id="search-results-container">
-                    <!-- Search results will appear here in a scrollable container -->
+                    <!-- Search results will appear here -->
                 </div>
             </div>
 
             <!-- Right Column - Downloads & Files -->
-            <div class="right-column">
-                <div class="downloads-section">
-                    <div class="section-title">
-                        <span>Active Downloads</span>
-                        <button class="btn secondary btn-small" onclick="refreshTorrents()">Refresh</button>
+            <div class="col-lg-6">
+                <!-- Active Downloads -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="bi bi-download"></i> Active Downloads
+                        </span>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshTorrents()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
                     </div>
-                    <div class="downloads-content" id="downloads">
-                        <!-- Active downloads will appear here -->
+                    <div class="card-body p-0">
+                        <div class="downloads-content" id="downloads">
+                            <!-- Active downloads will appear here -->
+                        </div>
                     </div>
                 </div>
 
-                <div class="files-section">
-                    <div class="section-title">
-                        <span>Downloaded Files</span>
-                        <div>
-                            <span id="file-count" class="info-text"></span>
-                            <button class="btn secondary btn-small" onclick="refreshFiles()" style="margin-left: 10px;">Refresh</button>
+                <!-- Downloaded Files -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="bi bi-files"></i> Downloaded Files
+                        </span>
+                        <div class="d-flex align-items-center">
+                            <span id="file-count" class="text-muted me-3"></span>
+                            <button class="btn btn-secondary btn-sm" onclick="refreshFiles()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
                         </div>
                     </div>
-                    <div class="files-content" id="files">
-                        <!-- Downloaded files will appear here -->
+                    <div class="card-body p-0">
+                        <div class="files-content" id="files">
+                            <!-- Downloaded files will appear here -->
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Inline JavaScript to avoid 404 issues -->
+    <script>
+        let downloadInterval;
+        let isPolling = false;
+        let selectedSite = 'piratebay';
+
+        const SITES = {
+            'piratebay': { name: 'The Pirate Bay', type: 'json_api', color: '#0d6efd' },
+            '1337x': { name: '1337x', type: 'html_scrape', color: '#198754' },
+            'gog-games': { name: 'GOG Games', type: 'html_scrape', color: '#6f42c1' },
+            'fitgirl': { name: 'FitGirl Repacks', type: 'html_scrape', color: '#d63384' },
+            'steamrip': { name: 'SteamRIP', type: 'html_scrape', color: '#fd7e14' }
+        };
+
+        console.log('Multi-Site Torrent Search & Download Manager loaded');
+
+        function selectSite(site) {
+            console.log('Site selected:', site);
+            selectedSite = site;
+            
+            document.querySelectorAll('.site-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            const selectedOption = document.querySelector(`[onclick="selectSite('${site}')"]`);
+            if (selectedOption) {
+                selectedOption.classList.add('selected');
+                selectedOption.querySelector('input').checked = true;
+            }
+            
+            updateSearchStatus();
+            const resultsContainer = document.getElementById("search-results-container");
+            resultsContainer.innerHTML = '';
+        }
+
+        function updateSearchStatus() {
+            const statusEl = document.getElementById('search-status');
+            const siteInfo = SITES[selectedSite];
+            if (statusEl && siteInfo) {
+                statusEl.textContent = `Searching ${siteInfo.name}`;
+                statusEl.style.color = siteInfo.color;
+            }
+        }
+
+        async function search() {
+            console.log('Search function called');
+            const query = document.getElementById("searchInput").value.trim();
+            
+            if (!query) {
+                console.log('Empty query, returning');
+                return;
+            }
+
+            const resultsContainer = document.getElementById("search-results-container");
+            const siteInfo = SITES[selectedSite];
+            
+            resultsContainer.innerHTML = `
+                <div class="search-results-header d-flex justify-content-between align-items-center">
+                    <span>Searching ${siteInfo.name}...</span>
+                    <span class="badge bg-secondary">${siteInfo.type.toUpperCase()}</span>
+                </div>
+                <div class="p-3">
+                    <div class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="mt-2">Searching "${escapeHtml(query)}" on ${siteInfo.name}...</div>
+                    </div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&site=${selectedSite}`);
+                const data = await response.json();
+
+                if (data.results && data.results.length > 0) {
+                    resultsContainer.innerHTML = `
+                        <div class="search-results-header d-flex justify-content-between align-items-center">
+                            <span>Search Results (${data.results.length} found for "${escapeHtml(query)}")</span>
+                            <span class="badge bg-primary">${siteInfo.name}</span>
+                        </div>
+                        <div class="p-3">
+                            ${data.results.map(result => `
+                                <div class="result-item">
+                                    <h6 class="mb-2">${escapeHtml(result.name)}</h6>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-auto">
+                                            <span class="badge bg-light text-dark">
+                                                <i class="bi bi-hdd"></i> ${result.size || 'Unknown'}
+                                            </span>
+                                        </div>
+                                        <div class="col-auto">
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-arrow-up"></i> ${result.seeders || 'N/A'}
+                                            </span>
+                                        </div>
+                                        <div class="col-auto">
+                                            <span class="badge bg-warning">
+                                                <i class="bi bi-arrow-down"></i> ${result.leechers || 'N/A'}
+                                            </span>
+                                        </div>
+                                        ${result.added ? `<div class="col-auto">
+                                            <span class="badge bg-info">
+                                                <i class="bi bi-calendar"></i> ${result.added}
+                                            </span>
+                                        </div>` : ''}
+                                        ${result.category ? `<div class="col-auto">
+                                            <span class="badge bg-secondary">${result.category}</span>
+                                        </div>` : ''}
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-primary btn-sm" onclick="download('${result.info_hash || result.magnet}', '${escapeHtml(result.name).replace(/'/g, "\\'")}')">
+                                            <i class="bi bi-download"></i> Download
+                                        </button>
+                                        ${result.url ? `<a href="${result.url}" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi bi-box-arrow-up-right"></i> View Page
+                                        </a>` : ''}
+                                    </div>
+                                </div>
+                            `).join("")}
+                        </div>
+                    `;
+                } else {
+                    resultsContainer.innerHTML = `
+                        <div class="search-results-header d-flex justify-content-between align-items-center">
+                            <span>No Results</span>
+                            <span class="badge bg-primary">${siteInfo.name}</span>
+                        </div>
+                        <div class="p-4 text-center">
+                            <i class="bi bi-search display-4 text-muted mb-3"></i>
+                            <h5>No results found for "${escapeHtml(query)}" on ${siteInfo.name}</h5>
+                            <p class="text-muted">Try a different search term or switch to another site</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error("Search error:", error);
+                resultsContainer.innerHTML = `
+                    <div class="search-results-header d-flex justify-content-between align-items-center">
+                        <span>Search Error</span>
+                        <span class="badge bg-danger">ERROR</span>
+                    </div>
+                    <div class="p-4 text-center">
+                        <i class="bi bi-exclamation-triangle display-4 text-danger mb-3"></i>
+                        <h5>Search failed on ${siteInfo.name}</h5>
+                        <p class="text-muted">${error.message}<br>Try switching to a different site or check your connection</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function download(infoHashOrMagnet, name) {
+            console.log('Download starting:', name, infoHashOrMagnet);
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="bi bi-clock"></i> Starting...';
+
+            try {
+                const response = await fetch("/api/download", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        info_hash: infoHashOrMagnet, 
+                        name: name,
+                        site: selectedSite
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    button.innerHTML = '<i class="bi bi-check"></i> Added!';
+                    button.classList.remove('btn-primary');
+                    button.classList.add('btn-success');
+                    await refreshTorrents();
+                    startDownloadPolling();
+                } else {
+                    throw new Error(data.error || "Unknown error");
+                }
+            } catch (error) {
+                console.error("Download error:", error);
+                button.disabled = false;
+                button.innerHTML = originalText;
+                alert("Download failed: " + error.message);
+            }
+        }
+
+        async function refreshTorrents() {
+            console.log('Refreshing torrents...');
+            const downloadsDiv = document.getElementById("downloads");
+            
+            try {
+                const response = await fetch("/api/current-torrents");
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+
+                if (data.torrents && data.torrents.length > 0) {
+                    downloadsDiv.innerHTML = data.torrents.map(torrent => {
+                        const statusClass = getStatusClass(torrent.status);
+                        let progressColor = 'bg-success';
+                        let errorInfo = '';
+                        
+                        if (torrent.error > 0) {
+                            progressColor = 'bg-danger';
+                            errorInfo = `
+                                <div class="alert alert-danger mt-2 mb-0">
+                                    <strong>Error:</strong> ${torrent.error_string}<br>
+                                    <small>Tip: This usually means a volume mounting issue. Check your docker-compose.yml file.</small>
+                                </div>
+                            `;
+                        }
+                        
+                        return `
+                            <div class="download-item">
+                                <h6 class="mb-2">${escapeHtml(torrent.name)}</h6>
+                                <div class="progress mb-2">
+                                    <div class="progress-bar ${progressColor}" style="width: ${torrent.progress}%">
+                                        ${torrent.progress.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <span class="badge ${statusClass}">${torrent.status}</span>
+                                        <small class="text-muted ms-2">
+                                            ${torrent.download_rate > 0 ? `Down: ${formatSpeed(torrent.download_rate)}` : ''}
+                                            ${torrent.upload_rate > 0 ? ` Up: ${formatSpeed(torrent.upload_rate)}` : ''}
+                                            ${torrent.download_rate === 0 && torrent.upload_rate === 0 ? 'Idle' : ''}
+                                        </small>
+                                    </div>
+                                    <div class="btn-group btn-group-sm">
+                                        ${torrent.status === 'stopped' ? 
+                                            `<button class="btn btn-success" onclick="startTorrent(${torrent.id})">
+                                                <i class="bi bi-play"></i> Start
+                                            </button>` :
+                                            `<button class="btn btn-warning" onclick="pauseTorrent(${torrent.id})">
+                                                <i class="bi bi-pause"></i> Pause
+                                            </button>`
+                                        }
+                                        <button class="btn btn-secondary" onclick="removeTorrent(${torrent.id})">
+                                            <i class="bi bi-trash"></i> Remove
+                                        </button>
+                                    </div>
+                                </div>
+                                ${errorInfo}
+                            </div>
+                        `;
+                    }).join("");
+                } else {
+                    downloadsDiv.innerHTML = '<div class="text-center text-muted p-4">No active downloads</div>';
+                }
+            } catch (error) {
+                console.error("Refresh error:", error);
+                downloadsDiv.innerHTML = `<div class="text-center text-danger p-4">Failed to load downloads: ${error.message}</div>`;
+            }
+        }
+
+        async function refreshFiles() {
+            console.log('Refreshing files...');
+            const filesDiv = document.getElementById("files");
+            const fileCountSpan = document.getElementById("file-count");
+            
+            try {
+                const response = await fetch("/api/files");
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+
+                if (data.files && data.files.length > 0) {
+                    const totalSize = formatTotalSize(data.files);
+                    fileCountSpan.textContent = `${data.files.length} files (${totalSize})`;
+                    
+                    filesDiv.innerHTML = data.files.map(file => `
+                        <div class="file-item">
+                            <h6 class="mb-2">${escapeHtml(file.name)}</h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-auto">
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-hdd"></i> ${file.size}
+                                    </span>
+                                </div>
+                                <div class="col-auto">
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-calendar"></i> ${file.modified}
+                                    </span>
+                                </div>
+                                ${file.folder !== '/' ? `<div class="col-auto">
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-folder"></i> ${file.folder}
+                                    </span>
+                                </div>` : ''}
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a href="/download/${encodeURIComponent(file.path)}" 
+                                   class="btn btn-primary btn-sm" 
+                                   download="${file.name}">
+                                    <i class="bi bi-download"></i> Download to Device
+                                </a>
+                                <button class="btn btn-danger btn-sm" 
+                                        onclick="deleteFile('${file.path}', '${escapeHtml(file.name).replace(/'/g, "\\'")}')">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    `).join("");
+                } else {
+                    fileCountSpan.textContent = '0 files';
+                    filesDiv.innerHTML = `
+                        <div class="text-center text-muted p-4">
+                            <i class="bi bi-files display-4 mb-3"></i>
+                            <h6>No downloaded files yet</h6>
+                            <p>Complete some torrents to see files here!</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error("Files refresh error:", error);
+                filesDiv.innerHTML = `<div class="text-center text-danger p-4">Failed to load files: ${error.message}</div>`;
+                fileCountSpan.textContent = '';
+            }
+        }
+
+        async function deleteFile(filepath, filename) {
+            if (!confirm(`Are you sure you want to delete "${filename}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch("/api/files/delete", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({filepath: filepath})
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`File "${filename}" deleted successfully`);
+                    refreshFiles();
+                } else {
+                    throw new Error(data.error || "Unknown error");
+                }
+            } catch (error) {
+                console.error("Delete error:", error);
+                alert("Delete failed: " + error.message);
+            }
+        }
+
+        async function removeTorrent(torrentId) {
+            if (!confirm('Remove this torrent from the download list?\n\n(Downloaded files will be kept)')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch("/api/torrent/remove", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({torrent_id: torrentId})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    refreshTorrents();
+                } else {
+                    alert("Failed to remove torrent: " + (data.error || "Unknown error"));
+                }
+            } catch (error) {
+                alert("Failed to remove torrent: " + error.message);
+            }
+        }
+        
+        async function startTorrent(torrentId) {
+            try {
+                const response = await fetch("/api/torrent/start", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({torrent_id: torrentId})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    refreshTorrents();
+                } else {
+                    alert("Failed to start torrent: " + (data.error || "Unknown error"));
+                }
+            } catch (error) {
+                alert("Failed to start torrent: " + error.message);
+            }
+        }
+        
+        async function pauseTorrent(torrentId) {
+            try {
+                const response = await fetch("/api/torrent/pause", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({torrent_id: torrentId})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    refreshTorrents();
+                } else {
+                    alert("Failed to pause torrent: " + (data.error || "Unknown error"));
+                }
+            } catch (error) {
+                alert("Failed to pause torrent: " + error.message);
+            }
+        }
+
+        function startDownloadPolling() {
+            if (isPolling) return;
+            console.log('Starting download polling...');
+            isPolling = true;
+            downloadInterval = setInterval(() => {
+                refreshTorrents();
+                refreshFiles();
+            }, 5000);
+        }
+
+        function stopDownloadPolling() {
+            if (downloadInterval) {
+                console.log('Stopping download polling');
+                clearInterval(downloadInterval);
+                downloadInterval = null;
+                isPolling = false;
+            }
+        }
+
+        async function refreshAll() {
+            console.log('Refreshing all data...');
+            await Promise.all([refreshTorrents(), refreshFiles()]);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatSpeed(bytesPerSecond) {
+            if (bytesPerSecond === 0) return '0 B/s';
+            const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+            let size = bytesPerSecond;
+            let unitIndex = 0;
+            
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            
+            return `${size.toFixed(1)} ${units[unitIndex]}`;
+        }
+
+        function formatTotalSize(files) {
+            const totalBytes = files.reduce((sum, file) => sum + file.size_bytes, 0);
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let size = totalBytes;
+            let unitIndex = 0;
+            
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            
+            return `${size.toFixed(1)} ${units[unitIndex]}`;
+        }
+
+        function getStatusClass(status) {
+            const statusMap = {
+                'downloading': 'bg-primary',
+                'completed': 'bg-success',
+                'seeding': 'bg-warning',
+                'stopped': 'bg-danger',
+                'checking': 'bg-info',
+                'error': 'bg-danger'
+            };
+            return statusMap[status] || 'bg-secondary';
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById("searchInput");
+            if (searchInput) {
+                searchInput.addEventListener("keypress", function(event) {
+                    if (event.key === "Enter") {
+                        search();
+                    }
+                });
+            }
+            
+            updateSearchStatus();
+        });
+
+        window.addEventListener('load', function() {
+            console.log('Page loaded, initializing...');
+            refreshAll();
+            
+            setTimeout(() => {
+                const downloads = document.getElementById("downloads");
+                if (downloads && downloads.innerHTML.includes("progress-bar")) {
+                    startDownloadPolling();
+                }
+            }, 2000);
+        });
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                console.log('Page hidden, stopping polling');
+                stopDownloadPolling();
+            } else {
+                console.log('Page visible, refreshing and restarting polling');
+                refreshAll();
+                setTimeout(() => {
+                    const downloads = document.getElementById("downloads");
+                    if (downloads && downloads.innerHTML.includes("progress-bar")) {
+                        startDownloadPolling();
+                    }
+                }, 1000);
+            }
+        });
+
+        console.log('Multi-Site Torrent Search & Download Manager fully loaded!');
+    </script>
 </body>
 </html>

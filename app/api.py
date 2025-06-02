@@ -14,14 +14,18 @@ try:
     from .transmission_client import get_transmission_client  # Your existing HTTP client
     from .utils import (
         format_size, create_magnet_link, validate_info_hash, 
-        get_default_trackers, get_file_list, search_torrents_json_api
+        get_default_trackers, get_file_list, search_torrents_json_api,
+        search_torrents_html_scrape, extract_info_hash_from_link,
+        safe_int, parse_size, sanitize_filename
     )
 except ImportError:
     # Handle relative imports when running directly
     from transmission_client import get_transmission_client  # Your existing HTTP client
     from utils import (
         format_size, create_magnet_link, validate_info_hash, 
-        get_default_trackers, get_file_list, search_torrents_json_api
+        get_default_trackers, get_file_list, search_torrents_json_api,
+        search_torrents_html_scrape, extract_info_hash_from_link,
+        safe_int, parse_size, sanitize_filename
     )
 
 # Set up logging
@@ -166,9 +170,40 @@ def search():
         return jsonify({"error": f"Search failed on {site_config['name']}: {str(e)}"}), 500
 
 def search_json_api(query, search_url):
-    """Search using JSON API (PirateBay)"""
-    from .utils import search_torrents_json_api
-    return search_torrents_json_api(query, search_url)
+    """Search using JSON API (PirateBay) - uses existing utils function"""
+    try:
+        results = search_torrents_json_api(query, search_url)
+        
+        # Convert to expected format for multi-site compatibility
+        formatted_results = []
+        for item in results:
+            formatted_results.append({
+                'name': item.get('name', 'Unknown'),
+                'size': item.get('size', 'Unknown'),
+                'seeders': str(item.get('seeders', 0)),
+                'leechers': str(item.get('leechers', 0)),
+                'info_hash': item.get('info_hash', ''),
+                'magnet': create_magnet_link(item.get('info_hash', ''), item.get('name', ''), get_default_trackers()),
+                'added': item.get('added', 'Unknown'),
+                'category': get_category_name(item.get('category', '0'))
+            })
+        
+        return formatted_results
+    except Exception as e:
+        logger.error(f"JSON API search error: {e}")
+        return []
+
+def get_category_name(category_id):
+    """Convert PirateBay category ID to name"""
+    categories = {
+        '100': 'Audio',
+        '200': 'Video', 
+        '300': 'Applications',
+        '400': 'Games',
+        '500': 'Porn',
+        '600': 'Other'
+    }
+    return categories.get(str(category_id), 'Other')
 
 def search_html_scrape(query, site, search_url):
     """Search using HTML scraping for various sites"""
@@ -282,7 +317,7 @@ def parse_1337x(soup, base_url):
                         'seeders': str(seeders),
                         'leechers': str(leechers),
                         'magnet': magnet,
-                        'info_hash': extract_hash_from_magnet(magnet),
+                        'info_hash': extract_info_hash_from_link(magnet),
                         'url': detail_url,
                         'added': added,
                         'category': 'General'
@@ -372,7 +407,7 @@ def parse_gog_games(soup, base_url):
                         'seeders': 'N/A',
                         'leechers': 'N/A',
                         'magnet': magnet,
-                        'info_hash': extract_hash_from_magnet(magnet),
+                        'info_hash': extract_info_hash_from_link(magnet),
                         'url': link_url,
                         'category': 'Games',
                         'added': 'Recent'
@@ -471,7 +506,7 @@ def parse_fitgirl(soup, base_url):
                         'seeders': 'N/A',
                         'leechers': 'N/A',
                         'magnet': magnet,
-                        'info_hash': extract_hash_from_magnet(magnet),
+                        'info_hash': extract_info_hash_from_link(magnet),
                         'url': post_url,
                         'category': 'Repacks',
                         'added': 'Recent'
@@ -570,7 +605,7 @@ def parse_steamrip(soup, base_url):
                         'seeders': 'N/A',
                         'leechers': 'N/A',
                         'magnet': magnet,
-                        'info_hash': extract_hash_from_magnet(magnet),
+                        'info_hash': extract_info_hash_from_link(magnet),
                         'url': post_url,
                         'category': 'Games',
                         'added': 'Recent'
